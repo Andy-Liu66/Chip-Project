@@ -181,5 +181,6 @@ print("{} seconds taken...".format(round(time_taken.total_seconds(), 2)))
 7. 太頻繁抓取可能會被擋，需抓取多筆歷史資料時建議使用time.sleep()拉長間隔時間。
 
 * **FeedBack**
+
 此程式只是個人用途，因此當中許多部份是寫死的沒有彈性，但是個別模組中的 *get_original_data()* 則保留網頁所有資料，因此可以再將其包成其他function使用，歡迎提點任何改進之處，或寄信至andy566159@gmail.com。
 
