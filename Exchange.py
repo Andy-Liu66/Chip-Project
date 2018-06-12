@@ -242,21 +242,41 @@ class deal_with_data:
         sort_by_five = self.calculation_result.sort_values("近5日指標比例", ascending = False).iloc[0:(top_number + 1), :].reset_index(drop = True)
         sort_by_twenty = self.calculation_result.sort_values("近20日指標比例", ascending = False).iloc[0:(top_number + 1), :].reset_index(drop = True)
         sort_by_sixty = self.calculation_result.sort_values("近60日指標比例", ascending = False).iloc[0:(top_number + 1), :].reset_index(drop = True)
-        #尋找上述清單中符合20日大於60日指標之股票
+        #尋找上述清單中符合20日大於60日指標之股票→命名為selected_1
         all_companies = pd.concat([sort_by_five, sort_by_twenty, sort_by_sixty])
         all_companies.drop_duplicates(inplace = True)
-        #尋找上述清單中符合20日大於60日指標之股票
-        collected_stock_num = sum(all_companies["近20日指標比例"] > all_companies["近60日指標比例"])
-        if collected_stock_num > 0:
-            collected_stock = all_companies[all_companies["近20日指標比例"] > all_companies["近60日指標比例"]]
-            collected_stock = collected_stock.sort_values("近20日指標比例", ascending = False)
-            collected_stock = collected_stock.reset_index(drop = True)
+        selected_1_num = sum(all_companies["近20日指標比例"] > all_companies["近60日指標比例"])
+        if selected_1_num > 0:
+            selected_1 = all_companies[all_companies["近20日指標比例"] > all_companies["近60日指標比例"]]
+            selected_1 = selected_1.sort_values("近20日指標比例", ascending = False)
+            selected_1 = selected_1.reset_index(drop = True)
+            selected_1_set = set(selected_1.股票代號)
         else:
-            collected_stock = pd.DataFrame([])
+            selected_1 = pd.DataFrame(["NA"], columns = ["無符合條件之個股"])
+            selected_1_set = set()
+        #尋找上述清單中同時出現在5, 20, 60清單者→命名為selected_2
+        selected_2_set = set(sort_by_five.股票代號).intersection(set(sort_by_twenty.股票代號)).intersection(set(sort_by_sixty.股票代號))
+        if len(selected_2_set) > 0:
+            selected_2 = all_companies[all_companies.股票代號.apply(lambda x : x in selected_2_set)].reset_index(drop = True)
+        else:
+            selected_2 = pd.DataFrame(["NA"], columns = ["無符合條件之個股"])
+        #尋找上述清單中同時出現在5, 20, 60清單且20日大於60日指標之股票→命名為selected_3
+        selected_3_set = selected_2_set.intersection(selected_1_set)
+        if len(selected_3_set) > 0:
+            selected_3 = all_companies[all_companies.股票代號.apply(lambda x : x in selected_3_set)].reset_index(drop = True)
+        else:
+            selected_3 = pd.DataFrame(["NA"], columns = ["無符合條件之個股"])
+
         #建立寄信內容
         self.html_result = ""
-        self.html_result += "<strong><font size = 4>本日清單符合20日大於60日指標之個股</font></strong>"
-        self.html_result += collected_stock.to_html()
+        self.html_result += "<strong><font size = 4>本日出現於5, 20, 60日清單且20日指標大於60日之個股</font></strong>"
+        self.html_result += selected_3.to_html()
+        self.html_result += "<br><br>"
+        self.html_result += "<strong><font size = 4>本日出現於5, 20, 60日清單之個股</font></strong>"
+        self.html_result += selected_2.to_html()
+        self.html_result += "<br><br>"
+        self.html_result += "<strong><font size = 4>本日清單符合20日指標大於60日之個股</font></strong>"
+        self.html_result += selected_1.to_html()
         self.html_result += "<br><br>"
         self.html_result += "<strong><font size = 4>依據近5日指標排序</font></strong>"
         self.html_result += sort_by_five.to_html()
