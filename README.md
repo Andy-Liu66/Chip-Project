@@ -152,7 +152,7 @@ gmail(receivers_email_list, Exchange_deal_with_data()).send_gmail()
 ```
 
 * **自動化**
-透過Windows Task Scheduler每日自動執行以下程式：
+透過Windows Task Scheduler每日自動執行以下程式(程式會自動偵測當日有無開市，若無則回傳今日休市資訊)：
 
 ```python
 #daily_run.py
