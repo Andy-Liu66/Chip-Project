@@ -154,7 +154,7 @@ class deal_with_data:
         #讀入累積資料
         temp_result = pd.read_csv(self.cumulative_data)
         outstanding_stock = pd.read_csv(self.outstanding_stock)
-        #獲得今日資料
+        #獲取今日資料
         self.today_data = self.get_today_data() 
         print("{} - get today data !".format(self.type))
         #合併回累積資料集
@@ -288,6 +288,16 @@ class deal_with_data:
         self.html_result += sort_by_sixty.to_html()
         return self.html_result
 
+    def final_result(self):
+        #檢查當日是否有交易資料，若無則說明今日休市
+        self.html_result = ""
+        if len(self.main_force) == 0:
+            self.html_result += ""
+            self.html_result += "<strong><font size = 4>今日休市!</font></strong>"
+            return self.html_result
+        else:
+            return self.transform_to_html()
+
 
 #兩個重點注意：
 #1.這裡想要達到不輸入日期就預設為今日的功能，若上方的parent class裡沒有date此一參數，
@@ -334,7 +344,7 @@ class gmail:
         msg = MIMEMultipart('alternative')
         msg["Subject"] = "{} {} 籌碼指標".format(self.market, self.date)
         msg["From"] = self.my_mail
-        html = self.content.transform_to_html()
+        html = self.content.final_result()
         html_part = MIMEText(html, 'html')
         msg.attach(html_part)
         for receiver in self.receivers:
