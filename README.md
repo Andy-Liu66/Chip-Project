@@ -30,7 +30,7 @@ from Exchange import *
 main_force = Exchange_main_force(20180605, "ALL") 
 ```
 
-*上述stock_type可填入下列value中對應的代號*
+上述stock_type可填入下列value中對應的代號：
 ```Javascript
 <option value="ALL">全部</option>
 <option value="ALLBUT0999">全部(不含權證、牛熊證、可展延牛熊證)</option>
@@ -111,8 +111,17 @@ borrow_selected_data.head()
 
 * **deal_with_data 物件**
 1. 此物件將上述三大法人、融資融券、借券等物件各別的 get_selected_data()結果，分別指定至 *deal_with_data* 物件中的 *main_force, margin_purchase_short_sell, borrow* 等屬性內，接著透過 *deal_with_data* 物件中的 *get_today_data()* 獲得上述三者合併後的資料，此處 *deal_with_data* 可填入任意日期，若不填入則預設為今日。
-2. *calculate_indicator()* 則將整理後的資料迭代回累積資料後，接著計算自定義的指標，此處的指標計算方式為[(外資買賣超+投信買賣超-借券)-(融資-融券)]/(流通在外張數-董監事持股張數)，此策略著重於外資與投信等偏長線操作的法人，並將散戶視為反指標扣除散戶做多的部分，因此每日將計算出一個百分比，接著透過累加方式，計算以當日為基準回推5日、10日、20日、60日累加的結果，透過觀察此累加值便可得知法人近期操作趨勢，計算結果將分為四張表，第二至第四張表分別為5日、20日、60日指標由大致小排序取前30名，第一張表則為上述三張表中20日指標大過於60日指標者，亦即近期買超較多者。
-3. *transform_to_html* 則將 *calculate_indicator()* 計算後的結果轉成HTML的格式，最後則透過另外一個物件gmail將結果寄出。
+2. *calculate_indicator()* 則將整理後的資料迭代回累積資料後，接著計算自定義的指標，此處的指標計算方式為：
+![img](https://raw.githubusercontent.com/Andy-Liu66/Chip-Project/master/Original/function.PNG)
+此策略著重於外資與投信等偏長線操作的法人，並將散戶視為反指標扣除散戶做多的部分，因此每日將計算出一個百分比，接著透過累加方式，計算以當日為基準回推5日、10日、20日、60日累加的結果，透過觀察此累加值便可得知法人近期操作趨勢，計算結果將分為以下六張表：
+
+    * *本日出現於5, 20, 60日清單且20日指標大於60日之個股*
+    * *本日出現於5, 20, 60日清單之個股*
+    * *本日清單符合20日指標大於60日之個股*
+    * *本日清單符合20日指標大於60日之個股*
+    * *本日清單符合20日指標大於60日之個股*
+    * *本日清單符合20日指標大於60日之個股*
+4. *transform_to_html* 則將 *calculate_indicator()* 計算後的結果轉成HTML的格式，最後則透過另外一個物件gmail將結果寄出。
 
 ```python
 #建立exchange_deal_with_data物件
@@ -169,12 +178,11 @@ gmail(receivers_email_list, Exchange_deal_with_data()).send_gmail()
 time_taken = datetime.now() - start
 print("{} seconds taken...".format(round(time_taken.total_seconds(), 2)))
 ```
-![img](https://github.com/Andy-Liu66/Chip-Project/blob/master/Original/daily_run_output.PNG)
+![img](https://raw.githubusercontent.com/Andy-Liu66/Chip-Project/master/Original/daily_run_output.PNG)
+收到的信件如下：
+![img](https://raw.githubusercontent.com/Andy-Liu66/Chip-Project/master/Original/result.PNG)
 
-*收到的信件如下：*
-![img](https://github.com/Andy-Liu66/Chip-Project/blob/master/Original/result.PNG)
-
-* **備註**
+### **備註**
 1. 上述功能在 *get_selected_data()* 中將只會選擇出符合代碼為四位數者(股票或ETF)，排除選擇權或其他商品，但 *get_original_data()* 則保留所有商品。
 2. 如果爬取資料過程出錯，則會直接回傳空的DataFrame。
 3. 在計算累加指標時，由於個股在某些天理可能沒有被交易(未涵蓋在上述三大部分中)，因此將會出現空值，但由於計算累加指標時，時間為一重要考量點，因此若個股某天未被交易，則會全部補0才不會失真。
@@ -183,6 +191,6 @@ print("{} seconds taken...".format(round(time_taken.total_seconds(), 2)))
 6. 證交所與櫃台買賣中心資料公布時間不一定，有時下午4, 5點便公布，有時則晚上9, 10點。
 7. 太頻繁爬取可能會被擋，需爬取多筆歷史資料時建議使用time.sleep()拉長間隔時間。
 
-* **FeedBack:**
+### **FeedBack**
 
 此程式只是個人用途，因此當中許多部份是寫死的沒有彈性，但是個別模組中的 *get_original_data()* 則保留網頁所有資料，因此可以再將其包成其他function使用，歡迎提點任何改進之處，或寄信至andy566159@gmail.com。
