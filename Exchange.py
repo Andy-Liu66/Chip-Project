@@ -7,6 +7,7 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import time
 
 
 ##基本架構
@@ -288,15 +289,32 @@ class deal_with_data:
         self.html_result += sort_by_sixty.to_html()
         return self.html_result
 
-    def final_result(self):
+    def final_result(self, trial_time_limit = 5):
         #檢查當日是否有交易資料，若無則說明今日休市
-        self.html_result = ""
-        if len(self.main_force) == 0:
-            self.html_result += ""
-            self.html_result += "<strong><font size = 4>今日休市!</font></strong>"
-            return self.html_result
-        else:
-            return self.transform_to_html()
+        # self.html_result = ""
+        # if len(self.main_force) == 0:
+        #     self.html_result += ""
+        #     self.html_result += "<strong><font size = 4>今日休市!</font></strong>"
+        #     return self.html_result
+        # else:
+        #     return self.transform_to_html()
+
+
+        # self.data_today_or_not = ""
+        # if datetime.now().hour < 22:
+        #     self.data_today_or_not = "(非最新資料)"
+        trial_time = 0
+        while trial_time < trial_time_limit:
+            if (len(self.main_force) and len(self.margin_purchase_short_sell) and len(self.borrow)) == 0:
+                trial_time += 1
+                self.__init__()
+                print("extra tried time = {}".format(trial_time))
+                time.sleep(3)
+                if trial_time == 5:
+                    print("(data isn't up to date)")
+            else:
+                break
+        return self.transform_to_html()
 
 
 #兩個重點注意：
@@ -342,9 +360,19 @@ class gmail:
         
     def send_gmail(self):
         msg = MIMEMultipart('alternative')
-        msg["Subject"] = "{} {} 籌碼指標".format(self.market, self.date)
-        msg["From"] = self.my_mail
         html = self.content.final_result()
+        if self.date != self.content.calculation_result["日期"].unique()[0]:
+            if datetime.now().hour > 22:
+                msg["Subject"] = "{} {} 籌碼指標 {}".format(self.market,
+                                                       self.content.calculation_result["日期"].unique()[0],
+                                                       "(今日休市，非最新資料)")
+            else:
+                msg["Subject"] = "{} {} 籌碼指標 {}".format(self.market,
+                                                       self.content.calculation_result["日期"].unique()[0],
+                                                       "(非最新資料)")
+        else:
+            msg["Subject"] = "{} {} 籌碼指標".format(self.market, self.date)
+        msg["From"] = self.my_mail
         html_part = MIMEText(html, 'html')
         msg.attach(html_part)
         for receiver in self.receivers:
