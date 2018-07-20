@@ -290,19 +290,6 @@ class deal_with_data:
         return self.html_result
 
     def final_result(self, trial_time_limit = 5):
-        #檢查當日是否有交易資料，若無則說明今日休市
-        # self.html_result = ""
-        # if len(self.main_force) == 0:
-        #     self.html_result += ""
-        #     self.html_result += "<strong><font size = 4>今日休市!</font></strong>"
-        #     return self.html_result
-        # else:
-        #     return self.transform_to_html()
-
-
-        # self.data_today_or_not = ""
-        # if datetime.now().hour < 22:
-        #     self.data_today_or_not = "(非最新資料)"
         trial_time = 0
         while trial_time < trial_time_limit:
             if (len(self.main_force) and len(self.margin_purchase_short_sell) and len(self.borrow)) == 0:
