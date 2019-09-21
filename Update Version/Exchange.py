@@ -22,7 +22,10 @@ class Exchange_Crawler:
         # 判斷今日是否有開市，若沒開市則代表沒資料，接著會丟出AssertionError
         # 日後透過for丟入日期更新資料時可以透過except捕捉AssertionError來決定pass，使for繼續運行
         # 但可能還會有其他原因導致'data'不在response_dict中，所以不見得完全是因為沒有開市
+        # 此主要對應三大法人買賣超狀況
         assert 'data' in response_dict, 'Market close today !'
+        # 此主要對應融資融券、借券的狀況，因為即使休市response中仍然會有data，只是會是空的
+        assert len(response_dict['data']) != 0, 'Market close today !'
         self.response_dict = response_dict
         raw_data = self.response_dict['data']
         return raw_data 
