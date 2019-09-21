@@ -5,12 +5,13 @@ class Exchange_Crawler:
     def __init__(self, date):
         self.date = str(date)
         self.main_url = None
+        self.select_type='ALLBUT0999'
         
-    def get_raw_data(self, select_type='ALLBUT0999'):
+    def get_raw_data(self):
         params = {
             'response': 'json',
             'date': self.date,
-            'selectType': select_type
+            'selectType': self.select_type
         }
         try:
             response = requests.get(self.main_url, params=params, headers = {'Connection':'close'})
@@ -45,6 +46,8 @@ class Exchange_Margin(Exchange_Crawler):
     def __init__(self, date):
         Exchange_Crawler.__init__(self, date)
         self.main_url = 'https://www.twse.com.tw/exchangeReport/MI_MARGN'
+        # 融資融券、借券的select_type沒有'ALLBUT0999'，因此更改為'ALL'
+        self.select_type = 'ALL'
 
     def get_formatted_data(self):
         raw_data = self.get_raw_data()
@@ -59,23 +62,23 @@ class Exchange_Margin(Exchange_Crawler):
         second_start_index = self.response_dict['groups'][1]['start']
         first_title = self.response_dict['groups'][0]['title']
         second_title = self.response_dict['groups'][1]['title']
-        fix_column_number = 6
+        fix_column_interval = 6
         
         # 重新命名
         self.response_dict['fields'][
-            first_start_index: first_start_index+fix_column_number
+            first_start_index: first_start_index+fix_column_interval
         ] = list(map(
             lambda x: first_title+x,
             self.response_dict['fields'][
-                first_start_index: first_start_index+fix_column_number
+                first_start_index: first_start_index+fix_column_interval
             ]
         )) 
         self.response_dict['fields'][
-            second_start_index: second_start_index+fix_column_number
+            second_start_index: second_start_index+fix_column_interval
         ] = list(map(
             lambda x: second_title+x,
             self.response_dict['fields'][
-                second_start_index: second_start_index+fix_column_number
+                second_start_index: second_start_index+fix_column_interval
             ]
         ))
         
