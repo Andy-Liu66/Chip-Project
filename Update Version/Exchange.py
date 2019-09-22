@@ -5,6 +5,7 @@ class Exchange_Crawler:
     def __init__(self, date):
         self.date = str(date)
         self.main_url = None
+        self.target = None
         self.select_type='ALLBUT0999'
         
     def get_raw_data(self):
@@ -34,14 +35,20 @@ class Exchange_Crawler:
             # 先定義sub function給內部mapping用
             def sub_transform(x):
                 try:
-                    return float(x.replace(',', ''))
+                    # 爬下來的資料單位為股，因此要改成張，但融資融券本身單位即為張所以甭改
+                    if self.target == 'Institution' or self.target == 'Borrow':
+                        return float(x.replace(',', ''))/1000
+                    elif self.target == 'Margin':
+                        return float(x.replace(',', ''))
                 except:
                     return x
-            
-            return list(map(
+
+            # 但首兩個columns為股票代號和股票名稱，因此無須轉換
+            series[2:] = list(map(
                 lambda x: sub_transform(x),
-                series
+                series[2:]
             ))
+            return series
 
         # 外部mapping，raw_data為一個array包著其他array，而單個array裡有多個值，因此用兩層mapping
         raw_data = list(map(
@@ -63,12 +70,14 @@ class Exchange_Crawler:
 class Exchange_Institution(Exchange_Crawler):
     def __init__(self, date):
         Exchange_Crawler.__init__(self, date)
+        self.target = 'Institution'
         self.main_url = 'https://www.twse.com.tw/fund/T86'
 
 # 繼承自Exchange_Crawler，同時改寫內部function
 class Exchange_Margin(Exchange_Crawler):
     def __init__(self, date):
         Exchange_Crawler.__init__(self, date)
+        self.target = 'Margin'
         self.main_url = 'https://www.twse.com.tw/exchangeReport/MI_MARGN'
         # 融資融券、借券的select_type沒有'ALLBUT0999'，因此更改為'ALL'
         self.select_type = 'ALL'
@@ -115,6 +124,7 @@ class Exchange_Margin(Exchange_Crawler):
 class Exchange_Borrow(Exchange_Margin):
     def __init__(self, date):
         Exchange_Crawler.__init__(self, date)
+        self.target = 'Borrow'
         self.main_url = 'https://www.twse.com.tw/exchangeReport/TWT93U'
     
     # 由於借券張數不存在，因此需要自行計算
