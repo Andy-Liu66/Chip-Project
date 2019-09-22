@@ -1,5 +1,6 @@
 import pandas as pd
 import requests
+import time
 
 class Exchange_Crawler:
     def __init__(self, date):
@@ -143,7 +144,72 @@ class Exchange_Borrow(Exchange_Margin):
 
         return formatted_data
 
+def update_Exchange_data(date, sleep_time=2):
+    cumulative_data = pd.read_csv('Cumulative_data.csv', low_memory=False)
+    # 先清一次重複值的資料
+    cumulative_data.drop_duplicates(inplace=True)
+
+    assert sleep_time >= 2, 'sleep time太短可能會被證交所封鎖！'
+    # 爬取資料
+    Institution = Exchange_Institution(date).get_formatted_data()
+
+    time.sleep(sleep_time)
+    Margin = Exchange_Margin(date).get_formatted_data()
+
+    time.sleep(sleep_time)
+    Borrow = Exchange_Borrow(date).get_formatted_data()
+
+    # 合併資料
+    newest_data = Institution.merge(
+        Margin, on=['Date', '股票代號'], how='outer'
+    )
+
+    # 由於借券中也涵蓋融資融券資料，如此一來會有重複columns，因此以下只取出純借券部分
+    difference_of_columns = Borrow.columns.difference(Margin.columns)
+    columns_to_use = ['Date', '股票代號']
+    columns_to_use.extend(difference_of_columns)
+
+    newest_data = newest_data.merge(
+        Borrow[columns_to_use], on=['Date', '股票代號'], how='outer'
+    )
+    
+    # 將float都四捨五入到小數點，否則後續在drop_duplicates時可能會有看似相近，但其時不同的float
+    def transform_to_int(x):
+        try:
+            return round(x)
+        except:
+            return x
+    newest_data = newest_data.applymap(lambda x: transform_to_int(x))
+    
+    # 先把當日整理後的資料存成csv再重新讀入，確保格式與既有之data相同
+    # 主要是nan所導致的問題，原先資料中的nan原本為''(空的string)，但被存進csv後再重新讀入會變成NaN
+    # 而當下爬下來的值為''時，若透過if判斷並將其轉成np.nan(或math.nan)，仍然會與既有資料的nan不同
+    # 這樣在執行drop_duplicates時會有問題，雖然都是nan但本質上不同，所以重複值出現時不會被drop掉
+    # 不確定確切原因為何，reference中有篇文章可以參考
+    # 目前解法是將資料先存成csv再重新讀入，如此一來nan值就會相同，因此執行drop_duplicates時便沒有問題
+    # 看起來多此一舉，但某種程度而言這個多出來的檔案以可以被拿來當成驗證資料與網頁是否相同的管道
+    newest_data.to_csv('Newest_data.csv', index=False)
+
+    # 重新讀入newest_data
+    newest_data = pd.read_csv('Newest_data.csv')
+    # 合併回累積資料並再做一次drop_duplicates
+    cumulative_data = pd.concat([cumulative_data, newest_data])
+    cumulative_data.drop_duplicates(inplace=True)
+    
+    # 依據Date排序，方便未來開csv檔檢查
+    cumulative_data.sort_values('Date', inplace=True)
+
+    # 最後再存回Cumulative_data
+    cumulative_data.to_csv('Cumulative_data.csv', index=False)
+
+    print('Data updated!')
+
+
+
+
 # Reference
 # [Python Inheritance, w3schools](https://www.w3schools.com/python/python_inheritance.asp)
 # [Pandas dataframe.insert()](https://www.geeksforgeeks.org/python-pandas-dataframe-insert/)
 # [Super() Method Tutorial](https://appdividend.com/2019/01/22/python-super-function-example-super-method-tutorial/)
+# [Convert floats to ints in Pandas?](https://stackoverflow.com/questions/21291259/convert-floats-to-ints-in-pandas/21291622)
+# [Why is float('nan') not equal to itself in python [duplicate]](https://stackoverflow.com/questions/45022451/why-is-floatnan-not-equal-to-itself-in-python)
