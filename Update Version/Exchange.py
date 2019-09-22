@@ -28,6 +28,27 @@ class Exchange_Crawler:
         assert len(response_dict['data']) != 0, 'Market close today !'
         self.response_dict = response_dict
         raw_data = self.response_dict['data']
+
+        # 爬下來的值皆為string，因此要轉成float
+        def transform_to_float(series):
+            # 先定義sub function給內部mapping用
+            def sub_transform(x):
+                try:
+                    return float(x.replace(',', ''))
+                except:
+                    return x
+            
+            return list(map(
+                lambda x: sub_transform(x),
+                series
+            ))
+
+        # 外部mapping，raw_data為一個array包著其他array，而單個array裡有多個值，因此用兩層mapping
+        raw_data = list(map(
+            lambda x: transform_to_float(x),
+            raw_data
+        ))
+
         return raw_data 
     
     def get_formatted_data(self):
@@ -95,7 +116,20 @@ class Exchange_Borrow(Exchange_Margin):
     def __init__(self, date):
         Exchange_Crawler.__init__(self, date)
         self.main_url = 'https://www.twse.com.tw/exchangeReport/TWT93U'
+    
+    # 由於借券張數不存在，因此需要自行計算
+    def get_formatted_data(self):
+        # 呼叫parent class的原始function，接著更改function內容
+        formatted_data = super().get_formatted_data()
+        formatted_data.insert(
+            loc=14,
+            column='借券張數',
+            value=formatted_data['借券賣出當日餘額'] - formatted_data['借券賣出前日餘額']
+        )
+
+        return formatted_data
 
 # Reference
 # [Python Inheritance, w3schools](https://www.w3schools.com/python/python_inheritance.asp)
 # [Pandas dataframe.insert()](https://www.geeksforgeeks.org/python-pandas-dataframe-insert/)
+# [Super() Method Tutorial](https://appdividend.com/2019/01/22/python-super-function-example-super-method-tutorial/)
