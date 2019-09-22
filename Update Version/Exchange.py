@@ -37,9 +37,9 @@ class Exchange_Crawler:
                 try:
                     # 爬下來的資料單位為股，因此要改成張，但融資融券本身單位即為張所以甭改
                     if self.target == 'Institution' or self.target == 'Borrow':
-                        return float(x.replace(',', ''))/1000
+                        return int(x.replace(',', ''))/1000
                     elif self.target == 'Margin':
-                        return float(x.replace(',', ''))
+                        return int(x.replace(',', ''))
                 except:
                     return x
 
@@ -67,7 +67,7 @@ class Exchange_Crawler:
         formatted_data.rename(columns={'證券代號': '股票代號'}, inplace=True)
         
         # 在首個column插入日期
-        formatted_data.insert(0, column='Date', value=self.date)
+        formatted_data.insert(0, column='Date', value=int(self.date))
         return formatted_data
 
 # 繼承自Exchange_Crawler
@@ -121,7 +121,7 @@ class Exchange_Margin(Exchange_Crawler):
         
         formatted_data.columns = self.response_dict['fields']
         # 在首個column插入日期
-        formatted_data.insert(0, column='Date', value=self.date)
+        formatted_data.insert(0, column='Date', value=int(self.date))
         return formatted_data
 
 # 繼承自Exchange_Margin
