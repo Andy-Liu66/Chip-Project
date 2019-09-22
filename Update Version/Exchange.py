@@ -61,6 +61,10 @@ class Exchange_Crawler:
     def get_formatted_data(self):
         raw_data = self.get_raw_data()
         formatted_data = pd.DataFrame(raw_data, columns=self.response_dict['fields'])
+        # 三大法人買賣超的其中一個欄位名稱為「證券代號」，但融資融券、借券皆為「股票代號」
+        # 因此以下直接將三大法人買賣超中的「證券代號」改為「股票代號」
+        # 之後由於融資融券、借券中的get_formatted_data也會被蓋掉不會繼承，因此無須額外多處理
+        formatted_data.rename(columns={'證券代號': '股票代號'}, inplace=True)
         
         # 在首個column插入日期
         formatted_data.insert(0, column='Date', value=self.date)
