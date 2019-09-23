@@ -144,6 +144,7 @@ class Exchange_Borrow(Exchange_Margin):
 
         return formatted_data
 
+# 將上面class包起來，同時寫進csv中
 def update_Exchange_data(date, sleep_time=2):
     cumulative_data = pd.read_csv('Cumulative_data.csv', low_memory=False)
     # 先清一次重複值的資料
@@ -173,7 +174,7 @@ def update_Exchange_data(date, sleep_time=2):
         Borrow[columns_to_use], on=['Date', '股票代號'], how='outer'
     )
     
-    # 將float都四捨五入到小數點，否則後續在drop_duplicates時可能會有看似相近，但其時不同的float
+    # 將float都四捨五入到小數點，否則後續在drop_duplicates時可能會有看似相近，但其實不同的float
     def transform_to_int(x):
         try:
             return round(x)
@@ -211,5 +212,5 @@ def update_Exchange_data(date, sleep_time=2):
 # [Python Inheritance, w3schools](https://www.w3schools.com/python/python_inheritance.asp)
 # [Pandas dataframe.insert()](https://www.geeksforgeeks.org/python-pandas-dataframe-insert/)
 # [Super() Method Tutorial](https://appdividend.com/2019/01/22/python-super-function-example-super-method-tutorial/)
-# [Convert floats to ints in Pandas?](https://stackoverflow.com/questions/21291259/convert-floats-to-ints-in-pandas/21291622)
+# [Safest way to convert float to integer in python?](https://stackoverflow.com/questions/3387655/safest-way-to-convert-float-to-integer-in-python)
 # [Why is float('nan') not equal to itself in python [duplicate]](https://stackoverflow.com/questions/45022451/why-is-floatnan-not-equal-to-itself-in-python)
