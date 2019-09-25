@@ -123,6 +123,26 @@ class Exchange_Margin(Exchange_Crawler):
         formatted_data.columns = self.response_dict['fields']
         # 在首個column插入日期
         formatted_data.insert(0, column='Date', value=int(self.date))
+        try:
+            formatted_data.insert(
+                8,
+                column='融資張數',
+                value=formatted_data['融資今日餘額'] - formatted_data['融資前日餘額']
+            )
+
+            formatted_data.insert(
+                15,
+                column='融券張數',
+                value=formatted_data['融券今日餘額'] - formatted_data['融券前日餘額']
+            )
+        # 由於會被Exchange_Borrow直接繼承
+        # 但Exchange_Borrow欲爬取的頁面不會有融資的資訊所以會產生error因此會進到except
+        # 網頁架構不變下，會進到error的情況基本上只會當Exchange_Borrow繼承併執行get_formatted_data時
+        # 但這寫法似乎不是好，物件間的差異用try except去區分感覺不太好
+        # 應該要產一個新的物件讓他們去繼承，然後再調細節差異給不同屬性或function
+        except Exception as e:
+            pass
+
         return formatted_data
 
 # 繼承自Exchange_Margin
