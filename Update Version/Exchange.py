@@ -140,7 +140,7 @@ class Exchange_Margin(Exchange_Crawler):
         # 網頁架構不變下，會進到error的情況基本上只會當Exchange_Borrow繼承併執行get_formatted_data時
         # 但這寫法似乎不是好，物件間的差異用try except去區分感覺不太好
         # 應該要產一個新的物件讓他們去繼承，然後再調細節差異給不同屬性或function
-        except Exception as e:
+        except:
             pass
 
         return formatted_data
@@ -179,6 +179,7 @@ def update_Exchange_data(date, sleep_time=2):
 
     time.sleep(sleep_time)
     Borrow = Exchange_Borrow(date).get_formatted_data()
+    print('Get today data!')
 
     # 合併資料
     newest_data = Institution.merge(
@@ -221,6 +222,7 @@ def update_Exchange_data(date, sleep_time=2):
     cumulative_data.sort_values('Date', inplace=True)
 
     # 最後再存回Cumulative_data
+    print('Saving data...')
     cumulative_data.to_csv('Cumulative_data.csv', index=False)
 
     print('Data updated!')
