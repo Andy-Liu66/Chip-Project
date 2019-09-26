@@ -202,12 +202,13 @@ def update_Exchange_data(date, sleep_time=2):
     # 不確定確切原因為何，reference中有篇文章可以參考
     # 目前解法是將資料先存成csv再重新讀入，如此一來nan值就會相同，因此執行drop_duplicates時便沒有問題
     # 看起來多此一舉，但某種程度而言這個多出來的檔案以可以被拿來當成驗證資料與網頁是否相同的管道
-    newest_data.to_csv('Newest_data.csv', index=False)
 
-    # 重新讀入newest_data
-    newest_data = pd.read_csv('Newest_data.csv')
     # 合併回累積資料並再做一次drop_duplicates
     cumulative_data = pd.concat([cumulative_data, newest_data])
+    # 原先的方法會將newest_data輸出成csv再重新讀入
+    # 但以下改成依據給定columns判斷就能避免以上問題(comment就留著沒移除了)
+    # 依據兩個columns判斷是否有重覆
+    # 若使用所有columns可能會有小數點或是nan不同的問題而相異，因此無法drop掉
     cumulative_data.drop_duplicates(['Date', '股票代號'], inplace=True)
     
     # 依據Date排序，方便未來開csv檔檢查
