@@ -195,14 +195,6 @@ def update_Exchange_data(date, sleep_time=2):
         Borrow[columns_to_use], on=['Date', '股票代號'], how='outer'
     )
     
-    # 將float都四捨五入到小數點，否則後續在drop_duplicates時可能會有看似相近，但其實不同的float
-    def transform_to_int(x):
-        try:
-            return round(x)
-        except:
-            return x
-    newest_data = newest_data.applymap(lambda x: transform_to_int(x))
-    
     # 先把當日整理後的資料存成csv再重新讀入，確保格式與既有之data相同
     # 主要是nan所導致的問題，原先資料中的nan原本為''(空的string)，但被存進csv後再重新讀入會變成NaN
     # 而當下爬下來的值為''時，若透過if判斷並將其轉成np.nan(或math.nan)，仍然會與既有資料的nan不同
