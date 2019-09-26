@@ -208,7 +208,7 @@ def update_Exchange_data(date, sleep_time=2):
     newest_data = pd.read_csv('Newest_data.csv')
     # 合併回累積資料並再做一次drop_duplicates
     cumulative_data = pd.concat([cumulative_data, newest_data])
-    cumulative_data.drop_duplicates(inplace=True)
+    cumulative_data.drop_duplicates(['Date', '股票代號'], inplace=True)
     
     # 依據Date排序，方便未來開csv檔檢查
     cumulative_data.sort_values('Date', inplace=True)
