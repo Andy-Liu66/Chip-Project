@@ -4,11 +4,19 @@ import numpy as np
 import time
 from datetime import datetime
 from progressbar import ProgressBar, Percentage, Bar, Timer, ETA
+import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 
 class Pipeline:
-    def __init__(self, date, market='TSE'):
-        self.date = date
+    def __init__(self, date=[], market='TSE'):
+        # 若未指定日期則預設為今日
+        if date == []:
+            self.date = int(str(datetime.today())[0:10].replace("-", ""))
+        else:
+            self.date = date
         # 保留市場選項，之後要新增OTC可以使用
         self.market = market
         self.data = pd.read_csv('Cumulative_data.csv', low_memory=False)
@@ -26,9 +34,9 @@ class Pipeline:
                 update_Exchange_data(self.date)
             except:
                 trial_time = 1
-                while trial_time < self.trial_time_limit:
+                while trial_time <= self.trial_time_limit:
                     time.sleep(3)
-                    print("Extra tried time = {}".format(trial_time))
+                    print("Extra trial = {}".format(trial_time))
                     try:
                         trial_time += 1
                         update_Exchange_data(self.date)
@@ -47,9 +55,10 @@ class Pipeline:
         try:
             end_index = self.avaliable_date_set.index(self.date)
         except:
-            end_index = self.avaliable_date_set[-1]
+            end_index = len(self.avaliable_date_set) - 1
         target_date_set = set(self.avaliable_date_set[end_index - 59: end_index + 1])
 
+        print('Calculating indicator...')
         indicator_result = pd.DataFrame()
 
         # 使用progressbar顯示進度，以下設定相關outlay
@@ -113,6 +122,7 @@ class Pipeline:
             indicator_result = pd.concat([indicator_result, temp_result])
             bar.update(i)
         bar.finish()
+        print('Calculation finished!')
 
         def transform_to_date(x):
             try:
@@ -354,3 +364,57 @@ class Pipeline:
         html_result += self.sort_by_sixty.to_html()
         self.html_result = html_result
         return self.html_result
+    
+class Gmail:
+    def __init__(self, receivers_list, pipeline):
+        self.my_mail = "andy566159@gmail.com"
+        self.receivers_list = receivers_list
+        self.pipeline = pipeline
+        self.market = pipeline.market
+        if self.market == 'TSE':
+            self.market_name = '上市公司'
+        elif self.market == 'OTC':
+            self.market_name = '上櫃公司'
+        date = str(self.pipeline.date)
+        self.date = date[0:4] + "-" + date[4:6] + "-" + date[6:8]
+        self.smtplib_object = smtplib.SMTP('smtp.gmail.com', 587)
+        self.smtplib_object.starttls()
+        self.smtplib_object.login(self.my_mail, os.environ["gmail_pwd"])
+        
+    def send_gmail(self):
+        msg = MIMEMultipart('alternative')
+        html_result = self.pipeline.transform_result_to_html()
+        if self.pipeline.date not in self.pipeline.avaliable_date_set:
+            if datetime.now().hour > 22:
+                msg["Subject"] = "{} {} 籌碼指標 {}".format(
+                    self.market_name,
+                    self.date,
+                    "(當日休市，以下為最近一期資料)"
+                )
+            else:
+                msg["Subject"] = "{} {} 籌碼指標 {}".format(
+                    self.market_name,
+                    self.date,
+                    "(網站尚未更新資料，以下為最近一期資料)"
+                )
+        else:
+            if self.pipeline.date == self.pipeline.avaliable_date_set[-1]:
+                msg["Subject"] = "{} {} 籌碼指標".format(
+                    self.market_name,
+                    self.date
+                )
+            else:
+                msg["Subject"] = "{} {} 籌碼指標 {}".format(
+                    self.market_name,
+                    self.date,
+                    "(非最新資料)"
+                )
+
+        msg["From"] = self.my_mail
+        html_part = MIMEText(html_result, 'html')
+        msg.attach(html_part)
+        for receiver in self.receivers_list:
+            msg["to"] = receiver
+            self.smtplib_object.sendmail(self.my_mail, receiver, msg.as_string())
+        print("{} - email sent !".format(self.market_name))
+        self.smtplib_object.quit()
