@@ -21,6 +21,7 @@ class Pipeline:
     
     def calculate_indicator(self):
         if self.date not in self.avaliable_date_set:
+            print('Getting data...')
             try:
                 update_Exchange_data(self.date)
             except:
@@ -43,7 +44,10 @@ class Pipeline:
         stock_list = stock_list.copy()
         stock_list['股票代號'] = stock_list['股票代號'].apply(lambda x: str(x))
 
-        end_index = self.avaliable_date_set.index(self.date)
+        try:
+            end_index = self.avaliable_date_set.index(self.date)
+        except:
+            end_index = self.avaliable_date_set[-1]
         target_date_set = set(self.avaliable_date_set[end_index - 59: end_index + 1])
 
         indicator_result = pd.DataFrame()
@@ -55,7 +59,6 @@ class Pipeline:
             ' , ', ETA(), ' '
         ]
         bar = ProgressBar(widgets=widgets, maxval=len(stock_list)).start()
-
         # inside for loop
         for i in range(len(stock_list)):
             current_code = stock_list.iloc[i]['股票代號']
@@ -174,6 +177,11 @@ class Pipeline:
             qualified_companies = pd.concat([self.sort_by_five, self.sort_by_twenty, self.sort_by_sixty])
             qualified_companies.drop_duplicates(['日期', '股票代號'], inplace=True)
             self.qualified_companies = qualified_companies
+            # 股票代號原先是string要轉成int，否則下面在找首次出現日期時會跳錯誤
+            # 因為indicator_collexction裡面的股票代號會是int
+            self.qualified_companies['股票代號'] = self.qualified_companies['股票代號'].apply(
+                lambda x: int(x)
+            )
             # 將indicator縮減至經篩選過後的qualified_companies，使此兩變數相同
             # 主要目的是讓self.sort_value_by_indicator()呼叫始能只對縮減後的self.indicator_result做計算
             self.indicator_result = self.qualified_companies
@@ -192,9 +200,6 @@ class Pipeline:
 
         self.qualified_companies = self.qualified_companies.copy()
         self.qualified_companies['最早出現日期'] = np.nan
-        self.qualified_companies['股票代號'] = self.qualified_companies['股票代號'].apply(
-            lambda x: int(x)
-        )
 
         for code in qualified_code:
             index = -3
@@ -203,7 +208,6 @@ class Pipeline:
             ]['股票代號']
             
             if code in last_second_date_indicator['股票代號'].values:
-                print('in')
                 while code in rolling_indicator_collection.values:
                     try:
                         index -= 1
@@ -213,7 +217,6 @@ class Pipeline:
                     except:
                         break
             else:
-                print('out')
                 while code not in rolling_indicator_collection.values:
                     try:
                         index -= 1
