@@ -19,15 +19,26 @@ class Pipeline:
             self.date = date
         # 保留市場選項，之後要新增OTC可以使用
         self.market = market
+        # 累積的籌碼資料
         self.data = pd.read_csv('Cumulative_data.csv', low_memory=False)
+        # 流通在外股數
         self.outstanding_stocks = pd.read_csv('Outstanding_stocks.csv')
+        # 累積籌碼指標
         self.indicator_collection = pd.read_csv('Exchange_indicator_collection.csv')
+        # 重新丟request的上限次數
         self.trial_time_limit = 5
-        # 設立avaliable_date_set
+        # 目前儲存籌碼資料中的日期範圍
         self.avaliable_date_set = list(self.data['Date'].unique())
         self.avaliable_date_set.sort()
     
+    # 計算指標會花較長時間，目前沒有進行優化，例如使用np.array方式改寫
+    # 獨立成一個function的目的在於執行前會先判斷既有籌碼指標中是否已曾計算
+    # 若已計算則不必重複計算
     def calculate_indicator(self):
+        # 會先判斷輸入日期日否已存在累積籌碼資料中，若否則執行爬蟲更新資料
+        # 由於沒有抓另外一類資料是「今日是否開盤」，因此無法判斷今日到底有無交易資料
+        # 因此透過trial方式當出現error時重新執行爬蟲值到達到上限次數
+        # 若有error在update_Exchange_data也有try, except機制會同步顯示Exception
         if self.date not in self.avaliable_date_set:
             print('Getting data...')
             try:
@@ -37,6 +48,9 @@ class Pipeline:
                 while trial_time <= self.trial_time_limit:
                     time.sleep(3)
                     print("Extra trial = {}".format(trial_time))
+                    # 其實這裡設計不好，若try過程中成功，程式還是會繼續丟request
+                    # 直到trial_time_limit達到上限才會停止
+                    # 可以設計機制判斷有資料新增就break
                     try:
                         trial_time += 1
                         update_Exchange_data(self.date)
@@ -44,6 +58,7 @@ class Pipeline:
                         print(e)
                     except Exception as e:
                         print(e)
+            # 若資料更新成功則重新init，因為要將資料重新讀入物件
             self.__init__(self.date)
         else:
             print('Data is up to date!')
@@ -52,9 +67,11 @@ class Pipeline:
         stock_list = stock_list.copy()
         stock_list['股票代號'] = stock_list['股票代號'].apply(lambda x: str(x))
 
+        # 找當前給定日期對應到既有日期序列中的位置，並往回找60筆日期，將用於抓區間籌碼資料
         try:
             end_index = self.avaliable_date_set.index(self.date)
         except:
+            # 若遇到日期不在既有區間中則給予最新日期，可能情形有過去沒交易的日期或是未到來的交易日
             end_index = len(self.avaliable_date_set) - 1
         target_date_set = set(self.avaliable_date_set[end_index - 59: end_index + 1])
 
@@ -81,7 +98,7 @@ class Pipeline:
 
             assert len(current_data) <= 61, '資料重覆，請檢查，否則指標將失真！'
 
-            # 若資料筆數少於60則須依據缺少日期補入空值
+            # 若資料筆數少於60則須依據缺少日期補入空值，否則計算出的指標會有問題
             if len(current_data) < 60:
                 missing_date = set(target_date_set).difference(set(current_data.Date))
                 supplementary_data = pd.DataFrame(
@@ -89,7 +106,8 @@ class Pipeline:
                 )
                 supplementary_data['Date'] = missing_date
                 current_data = pd.concat([current_data, supplementary_data])
-
+            
+            # na值意謂沒有實際交易數字因此給0
             current_data.fillna(0, inplace=True)
             current_data.sort_values('Date', inplace=True)
             
@@ -143,8 +161,9 @@ class Pipeline:
         self.indicator_result = indicator_result
         return self.indicator_result
     
+    # 此self.function會重複被使用所以獨立出來
     def sort_value_by_indicator(self):
-        # 建立依據指標欲選取的公司家數
+        # 設定將依據指標選取的公司家數
         top_number = 30
 
         # 建立各排序方式(大致小)前30名名單
@@ -164,10 +183,9 @@ class Pipeline:
         self.sort_by_sixty.index = range(1, top_number+1)
 
     def select_qualified_companies(self):
-        # 讀入既有資料，同時判斷當前輸入日期是否已曾被計算
-        # 若已存在則不重新計算，若不存在則重新計算
         target_date = str(self.date)[: 4] + '-' +  str(self.date)[4: 6] + '-' + str(self.date)[6: ]
 
+        # 判斷當前輸入日期是否已曾被計算，若已存在則不重新計算，若不存在則重新計算
         if target_date not in self.indicator_collection['日期'].values:
             # 由於indicator_result未曾被計算因此須執行計算
             # 最後還需要經由計算之指標比例排序縮減，才會是最終結果(qualified_companies)
@@ -176,13 +194,16 @@ class Pipeline:
             # 若當日指標未曾被計算，則計算完後要更新(存入)既有指標資料
             update_indicator = True
         else:
+            print('Data is up to date!')
+            print('Calculating indicator...')
             self.indicator_result = self.indicator_collection[self.indicator_collection['日期'] == target_date]
             self.qualified_companies = self.indicator_result
             update_indicator = False
 
         # 若未曾計算指標，則要將指標結果存起來
         if update_indicator:
-            # 將符合條件者合併起來
+            # 若指標未曾被計算則要透過執行sort_value_by_indicator()才能產生各類別排序結果
+            # 因為最後要存的只有各類別排序結果，並沒有要存所有公司的指標
             self.sort_value_by_indicator()
             qualified_companies = pd.concat([self.sort_by_five, self.sort_by_twenty, self.sort_by_sixty])
             qualified_companies.drop_duplicates(['日期', '股票代號'], inplace=True)
@@ -193,57 +214,102 @@ class Pipeline:
                 lambda x: int(x)
             )
             # 將indicator縮減至經篩選過後的qualified_companies，使此兩變數相同
-            # 主要目的是讓self.sort_value_by_indicator()呼叫始能只對縮減後的self.indicator_result做計算
+            # 主要目的是讓執行self.sort_value_by_indicator()時，只對縮減後的self.indicator_result做計算
             self.indicator_result = self.qualified_companies
             # 存起來
             self.indicator_collection = pd.concat([self.indicator_collection, self.indicator_result])
+            # 若是修市的日期因為不在既有資料中，所以會進到update_indicator中
+            # 同時又會計算一次最新日期的指標，會被寫入indicator_collection
+            # 如此一來會重覆，所以要drop_duplicates
+            self.indicator_collection.drop_duplicates(['日期', '股票代號'], inplace=True)
             self.indicator_collection.to_csv('Exchange_indicator_collection.csv', index=False)
-        
+
+        # 以下找尋連續出現情形下最早出現的日期，與不連續出現情形下最後出現的日期
+        # 既有資料中倒數第二筆資料日期，但須考量給定日期，所以透過index去找位置
+        try:
+            last_second_date_index = self.avaliable_date_set.index(self.date)-1
+        except:
+            # 若遇到日期不在既有區間中則給予最新日期，可能情形有過去沒交易的日期或是未到來的交易日
+            last_second_date_index = len(self.avaliable_date_set) - 1
+        last_second_date = self.avaliable_date_set[last_second_date_index]
+        # 欲進行判斷的標的
+        qualified_code = self.qualified_companies['股票代號'].values
+
         def normalize_date(date):
             return str(date)[: 4] + '-' +  str(date)[4: 6] + '-' + str(date)[6: ]
-        
-        last_second_date = self.avaliable_date_set[-2]
-        qualified_code = self.qualified_companies['股票代號'].values
+
+        # 找尋倒數第二個交易日之指標資料目的在於協助以下連續出現日的判斷
         last_second_date_indicator = self.indicator_collection[
             self.indicator_collection['日期'] == normalize_date(last_second_date)
         ]
 
         self.qualified_companies = self.qualified_companies.copy()
-        self.qualified_companies['最早出現日期'] = np.nan
+        self.qualified_companies['連續出現下最早出現日期'] = np.nan
+        self.qualified_companies['已出現天數'] = np.nan
+        self.qualified_companies['不連續出現下最後出現日期'] = np.nan
 
         for code in qualified_code:
-            index = -3
+            # 從給定日期下，倒數第二個交易日開始找，index將會一直被-=1
+            initial_index = -2
+            # 透過上述倒數第二個交易日的下一天來判斷最後一個交易日
+            last_index = last_second_date_index + 1
             rolling_indicator_collection = self.indicator_collection[
-                self.indicator_collection['日期'] == normalize_date(self.avaliable_date_set[index])
+                self.indicator_collection['日期'] == normalize_date(
+                    self.avaliable_date_set[last_index + initial_index]
+                )
             ]['股票代號']
             
+            find_earliest = False
+            find_last = False
+
+            # 股票在最新一筆資料一定有上榜(各類指標前30名)存在才會被考量
+            # 因此接下來有兩個方向需要判斷
+            # 1. 連續出現下最早出現日期與已出現天數
+            # 若股票在給定日期的上一日有上榜，則代表需要找連續往回推的時間中何時未出現在榜上
+            # 便可以判斷此未出現日期的下一個交易日便是此種情況下的最早出現日期，同時需要計算已出現天數
+            # 2. 不連續出現下最後出現日期
+            # 若股票在給定日期的上一日沒有上榜，則代表連續往回推中首次出現的日期便是最後出現日期
             if code in last_second_date_indicator['股票代號'].values:
                 while code in rolling_indicator_collection.values:
+                    find_earliest = True
                     try:
-                        index -= 1
+                        initial_index -= 1
                         rolling_indicator_collection = self.indicator_collection[
-                            self.indicator_collection['日期'] == normalize_date(self.avaliable_date_set[index])
+                            self.indicator_collection['日期'] == normalize_date(
+                                self.avaliable_date_set[last_index + initial_index]
+                            )
                         ]['股票代號']
                     except:
                         break
             else:
                 while code not in rolling_indicator_collection.values:
+                    find_last = True
                     try:
-                        index -= 1
+                        initial_index -= 1
                         rolling_indicator_collection = self.indicator_collection[
-                            self.indicator_collection['日期'] == normalize_date(self.avaliable_date_set[index])
+                            self.indicator_collection['日期'] == normalize_date(
+                                self.avaliable_date_set[last_index + initial_index]
+                            )
                         ]['股票代號']
                     except:
-                        index =None
-                        last_show_up_date = None
+                        initial_index = None
+                        target_show_up_date = None
                         break
 
-            if index != None:
-                last_show_up_date = normalize_date(self.avaliable_date_set[index + 1])
+            if initial_index != None:
+                target_show_up_date = normalize_date(
+                    self.avaliable_date_set[last_index + initial_index + 1]
+                )
 
-            self.qualified_companies.loc[
-                self.qualified_companies['股票代號'] == code, '最早出現日期'
-            ] = last_show_up_date
+            if find_earliest:
+                self.qualified_companies.loc[
+                    self.qualified_companies['股票代號'] == code, '連續出現下最早出現日期'
+                ] = target_show_up_date
+            
+            if find_last:
+                self.qualified_companies.loc[
+                    self.qualified_companies['股票代號'] == code, '不連續出現下最後出現日期'
+                ] = target_show_up_date
 
         def transform_to_date(x):
             try:
@@ -256,13 +322,13 @@ class Pipeline:
             self.qualified_companies['日期']
         ))
         self.current_today_collection = current_today_collection
-
-        last_show_up_date_collection = list(map(
+        
+        # 計算連續出現下最早出現日期之已出現天數
+        earliest_show_up_date_collection = list(map(
             lambda x: transform_to_date(x),
-            self.qualified_companies['最早出現日期']
+            self.qualified_companies['連續出現下最早出現日期']
         ))
-        self.last_show_up_date_collection = last_show_up_date_collection
-
+        self.earliest_show_up_date_collection = earliest_show_up_date_collection
         def minus(pair):
             try:
                 return int((pair[0] - pair[1]).days)
@@ -271,18 +337,21 @@ class Pipeline:
 
         self.qualified_companies['已出現天數'] = list(map(
             lambda x: minus(x),
-            zip(current_today_collection, last_show_up_date_collection)
+            zip(current_today_collection, earliest_show_up_date_collection)
         ))
 
-        # 此時qualified_companies才帶有'已出現天數'的資訊
-        # 以下要重新執行self.sort_value_by_indicator()，以確保各group皆帶有'已出現天數'資訊
+        # 此時qualified_companies才帶有上述新增的資訊
+        # 以下要重新執行self.sort_value_by_indicator()，以確保各group皆帶有上述新增的資訊
         # 但self.sort_value_by_indicator()是透過self.indicator_result計算
-        # 因此要把最新的self.qualified_companies指定回self.indicator_result，才能執行
+        # 因此要把最新的self.qualified_companies指定回self.indicator_result
+        # 重新產生各指標類別排序，因為面寄信部分需要各類別資訊
         self.indicator_result = self.qualified_companies
         self.sort_value_by_indicator()
 
 
     def transform_result_to_html(self):
+        # 執行上述多重步驟
+        # self.calculate_indicator(), self.sort_value_by_indicator都被包在其中
         self.select_qualified_companies()
 
         # 尋找上述清單中符合20日大於60日指標之股票→命名為group_1
@@ -340,10 +409,15 @@ class Pipeline:
                     '近5日指標比例', '近10日指標比例', '近20日指標比例', '近60日指標比例'
                 ]].applymap(lambda x: transform_to_percentage(x))
 
-                group = group.applymap(lambda x: transform_to_int(x))
+                group[group.columns] = group[group.columns].applymap(lambda x: transform_to_int(x))
             except:
                 pass
         
+        for sorted_result in [self.sort_by_five, self.sort_by_twenty, self.sort_by_sixty]:
+            sorted_result[sorted_result.columns] = sorted_result[sorted_result.columns].applymap(
+                lambda x: transform_to_int(x)
+            )
+
         html_result = ""
         html_result += "<strong><font size = 4>本日出現於5, 20, 60日清單且20日指標大於60日之個股</font></strong>"
         html_result += group_3.to_html()
@@ -371,6 +445,7 @@ class Gmail:
         self.receivers_list = receivers_list
         self.pipeline = pipeline
         self.market = pipeline.market
+        # 預留之後如果要使用OTC的選項
         if self.market == 'TSE':
             self.market_name = '上市公司'
         elif self.market == 'OTC':
@@ -398,7 +473,7 @@ class Gmail:
                     "(網站尚未更新資料，以下為最近一期資料)"
                 )
         else:
-            if self.pipeline.date == self.pipeline.avaliable_date_set[-1]:
+            if self.pipeline.date == int(str(datetime.today())[0:10].replace("-", "")):
                 msg["Subject"] = "{} {} 籌碼指標".format(
                     self.market_name,
                     self.date
@@ -416,5 +491,5 @@ class Gmail:
         for receiver in self.receivers_list:
             msg["to"] = receiver
             self.smtplib_object.sendmail(self.my_mail, receiver, msg.as_string())
-        print("{} - email sent !".format(self.market_name))
+        print("{} - email sent !".format(self.market))
         self.smtplib_object.quit()
