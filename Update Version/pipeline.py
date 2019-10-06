@@ -414,6 +414,19 @@ class Pipeline:
                 pass
         
         for sorted_result in [self.sort_by_five, self.sort_by_twenty, self.sort_by_sixty]:
+            try:
+                sorted_result[[
+                    '近5日指標比例', '近10日指標比例', '近20日指標比例', '近60日指標比例'
+                ]] = sorted_result[[
+                    '近5日指標比例', '近10日指標比例', '近20日指標比例', '近60日指標比例'
+                ]].applymap(lambda x: transform_to_percentage(x))
+
+                sorted_result[sorted_result.columns] = sorted_result[sorted_result.columns].applymap(
+                    lambda x: transform_to_int(x)
+                )
+            except:
+                pass
+
             sorted_result[sorted_result.columns] = sorted_result[sorted_result.columns].applymap(
                 lambda x: transform_to_int(x)
             )
